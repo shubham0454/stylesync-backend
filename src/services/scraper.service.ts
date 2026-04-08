@@ -24,6 +24,7 @@ export async function scrapeWebsiteTokens(url: string) {
     const isVercel = process.env.VERCEL || process.env.NODE_ENV === 'production';
     
     if (isVercel) {
+      console.log('Launching browser for Vercel...');
       browser = await puppeteer.launch({
         args: chromium.args,
         defaultViewport: chromium.defaultViewport,
@@ -49,16 +50,17 @@ export async function scrapeWebsiteTokens(url: string) {
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1440, height: 900 });
+    // Use a simpler UA to avoid some detection issues
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     );
 
-    // Try navigation; on timeout, use whatever partial render we have
+    // Try navigation; shorter timeouts for Vercel Hobby (10s total limit)
+    const navTimeout = isVercel ? 8000 : 25000;
     try {
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
-    } catch {
-      try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }); }
-      catch { /* fall through */ }
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: navTimeout });
+    } catch (e: any) {
+      console.warn('Navigation timeout or error, trying to proceed anyway:', e.message);
     }
 
     const tokens = await page.evaluate(() => {

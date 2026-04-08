@@ -21,6 +21,23 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
+// Diagnostic Endpoint
+app.get('/api/debug', async (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  const env = {
+    VERCEL: process.env.VERCEL || 'false',
+    NODE_ENV: process.env.NODE_ENV,
+    HAS_MONGO_URI: !!process.env.MONGO_URI,
+    DB_STATE: dbStatus
+  };
+  
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    env
+  });
+});
+
 // API: Ingest URL and Scrape Tokens
 app.post('/api/extract', async (req, res) => {
   const { url } = req.body;
@@ -87,22 +104,31 @@ app.post('/api/extract', async (req, res) => {
     res.json({ site, tokens: designToken });
   } catch (error: any) {
     console.error('Extraction error:', error);
+    
+    // Categorize error for better debugging
+    let step = 'unknown';
+    if (error.message?.includes('launch')) step = 'browser-launch';
+    else if (error.message?.includes('goto')) step = 'navigation';
+    else if (error.message?.includes('evaluate')) step = 'scraping';
+    else if (error.message?.includes('Vibrant')) step = 'color-extraction';
+
     try {
       // Mark as failed
       const site = await Site.findOne({ url });
       if (site) {
         site.status = 'failed';
-        site.errorMessage = error.message;
+        site.errorMessage = `[${step}] ${error.message}`;
         await site.save();
       }
     } catch (dbError) {
       console.error('Failed to save error state to DB:', dbError);
     }
     
-    // Explicitly send a 500 error instead of letting Express hang on unhandled rejection
     return res.status(500).json({ 
       error: 'Failed to extract design tokens from URL', 
-      details: error.message || 'Unknown error'
+      step,
+      details: error.message || 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
