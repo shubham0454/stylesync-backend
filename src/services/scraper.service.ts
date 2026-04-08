@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import Vibrant from 'node-vibrant';
 
 const FALLBACK_TOKENS = {
@@ -20,18 +21,31 @@ const isTransparent = (c: string) =>
 export async function scrapeWebsiteTokens(url: string) {
   let browser: any;
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--window-size=1440,900'
-      ]
-    });
+    const isVercel = process.env.VERCEL || process.env.NODE_ENV === 'production';
+    
+    if (isVercel) {
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless as any,
+      });
+    } else {
+      // Local development on Windows
+      browser = await puppeteer.launch({
+        headless: true,
+        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--window-size=1440,900'
+        ]
+      });
+    }
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1440, height: 900 });

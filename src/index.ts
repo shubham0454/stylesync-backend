@@ -21,11 +21,6 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// Health Check Route
-app.get('/', (req, res) => {
-  res.send('StyleSync Backend is running successfully!');
-});
-
 // API: Ingest URL and Scrape Tokens
 app.post('/api/extract', async (req, res) => {
   const { url } = req.body;
@@ -173,6 +168,10 @@ app.get('/api/history', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Server Error' });
   }
+});
+
+app.get('/', (req, res) => {
+  res.send('StyleSync Backend is running successfully!');
 });
 
 app.listen(PORT, () => {

@@ -4,7 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.scrapeWebsiteTokens = scrapeWebsiteTokens;
-const puppeteer_1 = __importDefault(require("puppeteer"));
+const puppeteer_core_1 = __importDefault(require("puppeteer-core"));
+const chromium_1 = __importDefault(require("@sparticuz/chromium"));
 const node_vibrant_1 = __importDefault(require("node-vibrant"));
 const FALLBACK_TOKENS = {
     colors: { primary: '#6366f1', secondary: '#818cf8', accent: '#22d3ee', background: '#ffffff', text: '#0f172a' },
@@ -22,18 +23,31 @@ const isTransparent = (c) => !c || c === 'rgba(0, 0, 0, 0)' || c === 'transparen
 async function scrapeWebsiteTokens(url) {
     let browser;
     try {
-        browser = await puppeteer_1.default.launch({
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--window-size=1440,900'
-            ]
-        });
+        const isVercel = process.env.VERCEL || process.env.NODE_ENV === 'production';
+        if (isVercel) {
+            browser = await puppeteer_core_1.default.launch({
+                args: chromium_1.default.args,
+                defaultViewport: chromium_1.default.defaultViewport,
+                executablePath: await chromium_1.default.executablePath(),
+                headless: chromium_1.default.headless,
+            });
+        }
+        else {
+            // Local development on Windows
+            browser = await puppeteer_core_1.default.launch({
+                headless: true,
+                executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-web-security',
+                    '--disable-features=IsolateOrigins,site-per-process',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--window-size=1440,900'
+                ]
+            });
+        }
         const page = await browser.newPage();
         await page.setViewport({ width: 1440, height: 900 });
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');

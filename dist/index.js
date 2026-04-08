@@ -172,6 +172,10 @@ app.get('/api/history', async (req, res) => {
         res.status(500).json({ error: 'Server Error' });
     }
 });
+app.get('/', (req, res) => {
+    res.send('StyleSync Backend is running successfully!');
+});
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+exports.default = app;
