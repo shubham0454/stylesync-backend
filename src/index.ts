@@ -16,19 +16,45 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/stylesync';
 
-// Connect to DB
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// Database Connection Helper for Serverless
+let cachedConnection: any = null;
+let lastConnectionError: string | null = null;
+
+async function connectToDatabase() {
+  if (cachedConnection && mongoose.connection.readyState === 1) {
+    return cachedConnection;
+  }
+
+  try {
+    console.log('Initializing new MongoDB connection...');
+    cachedConnection = await mongoose.connect(MONGO_URI);
+    lastConnectionError = null;
+    return cachedConnection;
+  } catch (err: any) {
+    lastConnectionError = err.message;
+    console.error('Mongoose connection error:', err);
+    throw err;
+  }
+}
+
+// Initial connection for local dev
+if (!process.env.VERCEL) {
+  connectToDatabase().catch(err => console.error('Initial DB connect failed:', err));
+}
 
 // Diagnostic Endpoint
 app.get('/api/debug', async (req, res) => {
+  try {
+    await connectToDatabase();
+  } catch (e) {}
+
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   const env = {
     VERCEL: process.env.VERCEL || 'false',
     NODE_ENV: process.env.NODE_ENV,
     HAS_MONGO_URI: !!process.env.MONGO_URI,
-    DB_STATE: dbStatus
+    DB_STATE: dbStatus,
+    DB_ERROR: lastConnectionError
   };
   
   res.json({
@@ -46,6 +72,8 @@ app.post('/api/extract', async (req, res) => {
   }
 
   try {
+    await connectToDatabase();
+    
     // 1. Get or Create Site
     let site = await Site.findOne({ url });
     if (!site) {
@@ -138,6 +166,7 @@ app.get('/api/tokens', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'URL query param is required' });
 
   try {
+    await connectToDatabase();
     const token = await DesignToken.findOne({ url: String(url) });
     if (!token) return res.status(404).json({ error: 'Tokens not found for this URL' });
     res.json(token);
@@ -152,6 +181,7 @@ app.put('/api/tokens', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   try {
+    await connectToDatabase();
     let tokenDoc = await DesignToken.findOne({ url });
     if (!tokenDoc) return res.status(404).json({ error: 'Tokens not found' });
 
@@ -187,6 +217,7 @@ app.get('/api/history', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'URL query param is required' });
 
   try {
+    await connectToDatabase();
     const history = await VersionHistory.find({ url: String(url) })
       .sort({ timestamp: -1 })
       .limit(20);
