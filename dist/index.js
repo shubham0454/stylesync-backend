@@ -175,7 +175,9 @@ app.get('/api/history', async (req, res) => {
 app.get('/', (req, res) => {
     res.send('StyleSync Backend is running successfully!');
 });
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
 exports.default = app;
